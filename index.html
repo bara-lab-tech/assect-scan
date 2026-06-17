@@ -1602,7 +1602,7 @@ async function checkDuplicate(serial) {
   }
 }
 
-function addToQueue() {
+async function addToQueue() {
   const assetType = document.getElementById('scanAssetType').value;
   const dept = document.getElementById('scanDept').value;
 
@@ -1641,9 +1641,17 @@ function addToQueue() {
     createdBy: currentUser ? currentUser.email : 'unknown',
   };
 
+  try {
+    await dbAdd('assets', item);
+    showToast(`✅ Saved #${sessionQueue.length + 1}: ${serial}`, 'success');
+  } catch (e) {
+    console.error('Save error:', e);
+    showToast('Failed to save – try again', 'error');
+    return;
+  }
+
   sessionQueue.push(item);
   renderQueue();
-  showToast(`✅ Added #${sessionQueue.length}: ${serial}`, 'success');
 
   pendingSerial = ''; pendingBrand = ''; pendingModel = ''; pendingSource = '';
   ocrImageData = null;
@@ -1709,20 +1717,7 @@ function clearQueue() {
 }
 
 async function saveQueueAndDownload() {
-  if (sessionQueue.length === 0) { showToast('No items to save', 'error'); return; }
-
-  let saved = 0;
-  for (const item of sessionQueue) {
-    try {
-      await dbAdd('assets', item);
-      saved++;
-    } catch (e) {
-      console.error('Save error:', e);
-    }
-  }
-
-  showToast(`✅ Saved ${saved} assets!`, 'success');
-  updateDashboard();
+  if (sessionQueue.length === 0) { showToast('No items in queue', 'error'); return; }
 
   const wb = XLSX.utils.book_new();
   const rows = [
@@ -1744,7 +1739,8 @@ async function saveQueueAndDownload() {
 
   sessionQueue = [];
   renderQueue();
-  showToast('📥 Excel downloaded!', 'success');
+  updateDashboard();
+  showToast('📥 Excel downloaded! Items safe in DB', 'success');
 }
 
 async function saveAsset() {
