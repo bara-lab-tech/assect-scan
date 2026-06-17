@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Scanner - Quick Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 { color: #667eea; }
+        .test-box {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+        .test-box.pass { border-left-color: #51cf66; }
+        .test-box.fail { border-left-color: #ff6b6b; }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .pass-status { background: #d4edda; color: #155724; }
+        .fail-status { background: #f8d7da; color: #721c24; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 5px 5px 0;
+        }
+        button:hover { background: #5568d3; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Asset Inventory Scanner - Quick Test</h1>
+    
+    <div id="results"></div>
+    
+    <div style="margin-top: 30px;">
+        <h2>📋 Test Results</h2>
+        <button onclick="testAll()">Run All Tests</button>
+        <button onclick="testCamera()">Test Camera</button>
+        <button onclick="testStorage()">Test Storage</button>
+        <button onclick="testLibraries()">Test Libraries</button>
+        <button onclick="openMainApp()">Open Main App</button>
+    </div>
+
+    <script>
+        function testAll() {
+            document.getElementById('results').innerHTML = '';
+            testLibraries();
+            testStorage();
+            testCamera();
+            testServer();
+        }
+
+        function testLibraries() {
+            const results = document.getElementById('results');
+            const tests = [
+                { name: 'html5-qrcode loaded', check: () => typeof Html5Qrcode !== 'undefined' },
+                { name: 'XLSX library loaded', check: () => typeof XLSX !== 'undefined' },
+                { name: 'window.location available', check: () => typeof window.location !== 'undefined' }
+            ];
+
+            tests.forEach(test => {
+                const passed = test.check();
+                const html = `
+                    <div class="test-box ${passed ? 'pass' : 'fail'}">
+                        <span class="status ${passed ? 'pass-status' : 'fail-status'}">
+                            ${passed ? '✅ PASS' : '❌ FAIL'}
+                        </span>
+                        <strong>Library Check:</strong> ${test.name}
+                    </div>
+                `;
+                results.innerHTML += html;
+            });
+        }
+
+        function testStorage() {
+            const results = document.getElementById('results');
+            try {
+                localStorage.setItem('test', 'value');
+                const value = localStorage.getItem('test');
+                localStorage.removeItem('test');
+                
+                const passed = value === 'value';
+                const html = `
+                    <div class="test-box ${passed ? 'pass' : 'fail'}">
+                        <span class="status ${passed ? 'pass-status' : 'fail-status'}">
+                            ${passed ? '✅ PASS' : '❌ FAIL'}
+                        </span>
+                        <strong>Storage Test:</strong> LocalStorage is working
+                    </div>
+                `;
+                results.innerHTML += html;
+            } catch (error) {
+                results.innerHTML += `
+                    <div class="test-box fail">
+                        <span class="status fail-status">❌ FAIL</span>
+                        <strong>Storage Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        function testCamera() {
+            const results = document.getElementById('results');
+            
+            if (window.location.protocol === 'file:') {
+                results.innerHTML += `
+                    <div class="test-box fail">
+                        <span class="status fail-status">⚠️ WARNING</span>
+                        <strong>Protocol Check:</strong> Running from file:// (cameras blocked)
+                        <br><em>Solution: Open via http://localhost:8000 instead</em>
+                    </div>
+                `;
+                return;
+            }
+
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        stream.getTracks().forEach(track => track.stop());
+                        results.innerHTML += `
+                            <div class="test-box pass">
+                                <span class="status pass-status">✅ PASS</span>
+                                <strong>Camera Access:</strong> Camera is available
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        results.innerHTML += `
+                            <div class="test-box fail">
+                                <span class="status fail-status">❌ FAIL</span>
+                                <strong>Camera Error:</strong> ${error.name}
+                                <br><em>Solution: Allow camera in browser permissions</em>
+                            </div>
+                        `;
+                    });
+            } else {
+                results.innerHTML += `
+                    <div class="test-box fail">
+                        <span class="status fail-status">❌ FAIL</span>
+                        <strong>Camera Check:</strong> Browser doesn't support getUserMedia
+                    </div>
+                `;
+            }
+        }
+
+        function testServer() {
+            const results = document.getElementById('results');
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            
+            let statusClass = 'pass';
+            let statusText = '✅ PASS';
+            let message = `Server: ${protocol}//${host}`;
+            
+            if (protocol === 'file:') {
+                statusClass = 'fail';
+                statusText = '❌ FAIL';
+                message = 'Running from file system (no camera access)<br>Solution: Open http://localhost:8000';
+            } else if (host.includes('localhost') || host.includes('127.0.0.1')) {
+                message = `Connected to local server: ${protocol}//${host} ✓`;
+            }
+            
+            results.innerHTML += `
+                <div class="test-box ${statusClass}">
+                    <span class="status ${statusClass}-status">${statusText}</span>
+                    <strong>Server Check:</strong> ${message}
+                </div>
+            `;
+        }
+
+        function openMainApp() {
+            window.location.href = window.location.origin + '/index.html';
+        }
+
+        // Auto-run on page load
+        window.addEventListener('load', testAll);
+    </script>
+</body>
+</html>

@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Asset Inventory Scanner Pro – Offline</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+<script src="https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #273549;
+    --border: #334155;
+    --accent: #38bdf8;
+    --accent2: #818cf8;
+    --accent3: #34d399;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .screen { display: none; min-height: 100vh; flex-direction: column; }
+  .screen.active { display: flex; }
+  #loginScreen {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  .login-card {
+    background: rgba(30,41,59,0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px 32px;
+    width: 100%; max-width: 400px;
+    box-shadow: var(--shadow);
+  }
+  .login-logo { text-align: center; margin-bottom: 32px; }
+  .login-logo .icon { font-size: 52px; display: block; margin-bottom: 8px; }
+  .login-logo h1 { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .login-logo p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .form-group { margin-bottom: 18px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-control {
+    width: 100%; padding: 12px 16px;
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-size: 15px; outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .form-control:focus { border-color: var(--accent); }
+  select.form-control option { background: var(--surface); }
+  textarea.form-control { resize: vertical; min-height: 80px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 13px 24px; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    border: none; transition: all 0.15s; text-decoration: none; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #0f172a; }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-success { background: var(--accent3); color: #0f172a; }
+  .btn-warn { background: var(--warn); color: #0f172a; }
+  .btn-purple { background: var(--accent2); color: #fff; }
+  .btn-full { width: 100%; }
+  .btn-sm { padding: 7px 14px; font-size: 13px; }
+  .btn-icon { padding: 10px; border-radius: var(--radius-sm); }
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title { font-size: 17px; font-weight: 700; }
+  .topbar-back {
+    background: none; border: none; color: var(--accent);
+    font-size: 22px; cursor: pointer; padding: 4px 8px;
+  }
+  .bottom-nav {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+    z-index: 100; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: 10px 4px; background: none; border: none;
+    color: var(--text3); cursor: pointer; transition: color 0.15s; font-size: 11px; gap: 3px;
+  }
+  .nav-item.active { color: var(--accent); }
+  .nav-item .nav-icon { font-size: 22px; }
+  .content { flex: 1; padding: 16px; overflow-y: auto; padding-bottom: 80px; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px; text-align: center;
+  }
+  .stat-card .val { font-size: 32px; font-weight: 800; }
+  .stat-card .lbl { font-size: 11px; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card.accent-blue .val { color: var(--accent); }
+  .stat-card.accent-green .val { color: var(--accent3); }
+  .stat-card.accent-red .val { color: var(--danger); }
+  .stat-card.accent-yellow .val { color: var(--warn); }
+  .stat-card.accent-purple .val { color: var(--accent2); }
+  .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .quick-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 12px;
+    text-align: center; cursor: pointer; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .quick-btn:hover { border-color: var(--accent); background: var(--surface2); }
+  .quick-btn .qi { font-size: 28px; }
+  .quick-btn .qt { font-size: 12px; font-weight: 600; color: var(--text2); }
+  .scan-area {
+    background: #000; border-radius: var(--radius);
+    overflow: hidden; position: relative; margin-bottom: 16px;
+    aspect-ratio: 4/3;
+  }
+  #videoEl { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scan-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .scan-frame {
+    width: 70%; aspect-ratio: 1;
+    border: 2px solid var(--accent);
+    border-radius: 12px; position: relative;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+  }
+  .scan-frame::before, .scan-frame::after,
+  .scan-frame .corner-bl, .scan-frame .corner-br {
+    content: ''; position: absolute; width: 20px; height: 20px;
+    border-color: var(--accent); border-style: solid;
+  }
+  .scan-frame::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 6px 0 0 0; }
+  .scan-frame::after { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-radius: 0 6px 0 0; }
+  .scan-frame .corner-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-radius: 0 0 0 6px; }
+  .scan-frame .corner-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 6px 0; }
+  .scan-line {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanAnim 2s linear infinite;
+  }
+  @keyframes scanAnim { 0% { top: 10%; } 100% { top: 90%; } }
+  .scan-toolbar { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .scan-result-box {
+    background: var(--surface2); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px;
+    display: none;
+  }
+  .scan-result-box.show { display: block; }
+  .scan-result-box .result-label { font-size: 11px; color: var(--text2); text-transform: uppercase; }
+  .scan-result-box .result-value { font-size: 18px; font-weight: 700; color: var(--accent); margin-top: 4px; word-break: break-all; }
+  .photo-preview { width: 100%; border-radius: var(--radius); overflow: hidden; background: #000; display: none; margin-bottom: 12px; }
+  .photo-preview img { width: 100%; display: block; }
+  .ocr-result-area {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px; margin-bottom: 12px; display: none;
+  }
+  .ocr-token { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 13px; margin: 3px; cursor: pointer; }
+  .ocr-token.serial { background: rgba(56,189,248,0.2); border: 1px solid var(--accent); color: var(--accent); }
+  .ocr-token.normal { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+  .search-bar {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); padding: 11px 14px;
+    color: var(--text); font-size: 15px; outline: none; width: 100%; margin-bottom: 12px;
+    -webkit-appearance: none;
+  }
+  .search-bar:focus { border-color: var(--accent); }
+  .filter-row { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 14px; padding-bottom: 4px; }
+  .filter-chip {
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    border: 1.5px solid var(--border); background: var(--surface2);
+    color: var(--text2); cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  }
+  .filter-chip.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+  .asset-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+    transition: border-color 0.15s;
+  }
+  .asset-card:hover { border-color: var(--accent); }
+  .asset-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+  .asset-type-badge {
+    background: rgba(56,189,248,0.15); color: var(--accent);
+    border-radius: 6px; padding: 3px 10px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .asset-card .serial { font-size: 17px; font-weight: 700; margin-bottom: 4px; word-break: break-all; }
+  .asset-card .meta { font-size: 12px; color: var(--text2); }
+  .asset-card-footer { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .source-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;
+  }
+  .source-badge.qr { background: rgba(52,211,153,0.15); color: var(--accent3); }
+  .source-badge.barcode { background: rgba(129,140,248,0.15); color: var(--accent2); }
+  .source-badge.ocr { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .source-badge.manual { background: rgba(148,163,184,0.15); color: var(--text2); }
+  .status-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;
+  }
+  .status-badge.active { background: rgba(52,211,153,0.15); color: var(--accent3); }
+  .status-badge.disposed { background: rgba(248,113,113,0.15); color: var(--danger); }
+  .status-badge.repair { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .status-badge.transferred { background: rgba(129,140,248,0.15); color: var(--accent2); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 200; display: none; align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 24px 24px 0 0;
+    padding: 24px; width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+    border-top: 1px solid var(--border);
+  }
+  .modal-center { align-items: center; }
+  .modal-center .modal { border-radius: 20px; margin: 16px; }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .chart-bar-wrap { margin-bottom: 16px; }
+  .chart-bar-item { margin-bottom: 10px; }
+  .chart-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .chart-bar-track { background: var(--surface2); border-radius: 6px; height: 10px; overflow: hidden; }
+  .chart-bar-fill { height: 100%; border-radius: 6px; background: var(--accent); transition: width 0.5s; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .section-title { font-size: 13px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px; }
+  .toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 20px; font-size: 14px; font-weight: 600;
+    z-index: 1000; opacity: 0; transition: all 0.25s; white-space: nowrap;
+    max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: var(--accent3); color: var(--accent3); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+  .toast.info { border-color: var(--accent); color: var(--accent); }
+  .badge-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+  .empty-state .ei { font-size: 52px; margin-bottom: 12px; }
+  .empty-state p { font-size: 15px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  .loading { display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .spinner {
+    width: 28px; height: 28px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar {
+    height: 4px; background: var(--surface2); border-radius: 2px; margin-top: 8px; overflow: hidden;
+  }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+  .info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .key { font-size: 13px; color: var(--text2); }
+  .info-row .val { font-size: 13px; font-weight: 600; text-align: right; max-width: 60%; word-break: break-all; }
+  .confidence-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  }
+  .confidence-pill.high { background: rgba(52,211,153,0.15); color: var(--accent3); }
+  .confidence-pill.med { background: rgba(251,191,36,0.15); color: var(--warn); }
+  #hiddenFileInput, #hiddenCamInput { display: none; }
+  .cam-placeholder {
+    background: var(--surface2); border-radius: var(--radius);
+    aspect-ratio: 4/3; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    color: var(--text2); border: 2px dashed var(--border); margin-bottom: 12px;
+  }
+  .cam-placeholder .ci { font-size: 48px; }
+  .settings-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .settings-item:hover { border-color: var(--accent); }
+  .settings-item .si-left { display: flex; align-items: center; gap: 12px; }
+  .settings-item .si-icon { font-size: 22px; }
+  .settings-item .si-text { font-size: 15px; font-weight: 600; }
+  .settings-item .si-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .toggle {
+    width: 44px; height: 26px; background: var(--surface2); border-radius: 13px;
+    position: relative; cursor: pointer; transition: background 0.2s; border: none;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 20px; height: 20px; border-radius: 50%; background: #fff;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 21px; }
+  .fab {
+    position: fixed; bottom: 84px; right: 16px;
+    background: var(--accent); color: #0f172a;
+    border: none; border-radius: 50%; width: 56px; height: 56px;
+    font-size: 26px; cursor: pointer; box-shadow: 0 4px 16px rgba(56,189,248,0.4);
+    display: flex; align-items: center; justify-content: center; z-index: 99;
+  }
+  canvas { display: none; }
+  .ai-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(129,140,248,0.15); border: 1px solid var(--accent2);
+    color: var(--accent2); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700;
+  }
+  .duplicate-alert {
+    background: rgba(248,113,113,0.1); border: 1px solid var(--danger);
+    border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px; display: none;
+  }
+  .duplicate-alert.show { display: block; }
+  .bulk-counter {
+    background: var(--surface2); border-radius: var(--radius);
+    padding: 16px; text-align: center; margin-bottom: 14px;
+  }
+  .bulk-counter .bc-num { font-size: 52px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .bulk-counter .bc-label { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .recent-list { max-height: 200px; overflow-y: auto; }
+  .recent-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .recent-item:last-child { border-bottom: none; }
+  .queue-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 6px;
+  }
+  .queue-item .qi-num {
+    font-size: 11px; color: var(--text3); min-width: 22px; font-weight: 700;
+  }
+  .queue-item .qi-serial {
+    font-size: 14px; font-weight: 700; color: var(--accent); flex: 1; word-break: break-all;
+  }
+  .queue-item .qi-meta { font-size: 11px; color: var(--text2); }
+  .queue-item .qi-del {
+    background: none; border: none; color: var(--danger); font-size: 16px; cursor: pointer; padding: 2px 6px;
+  }
+  #sessionQueueSection { border-top: 2px solid var(--accent); padding-top: 16px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginScreen" class="screen active">
+  <div class="login-card">
+    <div class="login-logo">
+      <span class="icon">🏷️</span>
+      <h1>Asset Scanner Pro</h1>
+      <p>IT Inventory Management System</p>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="loginEmail" class="form-control" type="email" placeholder="admin@company.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="loginPass" class="form-control" type="password" placeholder="••••••••">
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;">
+        <input id="rememberMe" type="checkbox" style="accent-color:var(--accent)"> Remember Me
+      </label>
+      <span style="font-size:13px;color:var(--accent);cursor:pointer;" onclick="showToast('Reset link sent (demo mode)','info')">Forgot Password?</span>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+    <div style="margin-top:14px;text-align:center;font-size:13px;color:var(--text2);">
+      Demo: any email + any password
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MAIN APP ===================== -->
+<div id="appScreen" class="screen">
+  <!-- DASHBOARD -->
+  <div id="dashPage" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">📊 Dashboard</div>
+        <div style="font-size:11px;color:var(--text2)" id="dashDate"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm btn-secondary" onclick="showPage('settingsPage')">⚙️</button>
+        <button class="btn btn-sm btn-secondary" onclick="doLogout()">↩️</button>
+      </div>
+    </div>
+    <div class="content">
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card accent-blue"><div class="val" id="statTotal">0</div><div class="lbl">Total Assets</div></div>
+        <div class="stat-card accent-green"><div class="val" id="statToday">0</div><div class="lbl">Today's Scans</div></div>
+        <div class="stat-card accent-red"><div class="val" id="statDupe">0</div><div class="lbl">Duplicates</div></div>
+        <div class="stat-card accent-yellow"><div class="val" id="statPending">0</div><div class="lbl">Pending Sync</div></div>
+        <div class="stat-card accent-purple" style="grid-column:1/-1"><div class="val" id="statDepts">0</div><div class="lbl">Departments Covered</div></div>
+      </div>
+      <div class="section-title">Quick Actions</div>
+      <div class="quick-grid">
+        <div class="quick-btn" onclick="showPage('scanPage')"><div class="qi">📷</div><div class="qt">New Asset Scan</div></div>
+        <div class="quick-btn" onclick="showBulkMode()"><div class="qi">🔁</div><div class="qt">Bulk Audit</div></div>
+        <div class="quick-btn" onclick="showPage('assetsPage')"><div class="qi">📋</div><div class="qt">View Assets</div></div>
+        <div class="quick-btn" onclick="showPage('reportsPage')"><div class="qi">📈</div><div class="qt">Reports</div></div>
+        <div class="quick-btn" onclick="exportExcel()"><div class="qi">📥</div><div class="qt">Export Excel</div></div>
+        <div class="quick-btn" onclick="showPage('settingsPage')"><div class="qi">⚙️</div><div class="qt">Settings</div></div>
+      </div>
+      <div class="divider"></div>
+      <div class="section-title">Recent Activity</div>
+      <div id="recentActivity"></div>
+    </div>
+  </div>
+
+  <!-- SCAN PAGE -->
+  <div id="scanPage" class="page" style="display:none">
+    <div class="topbar">
+      <button class="topbar-back" onclick="showPage('dashPage')">‹</button>
+      <div class="topbar-title">New Asset Scan</div>
+      <div></div>
+    </div>
+    <div class="content">
+      <!-- Collection Info -->
+      <div id="collectionInfoSection">
+        <div class="section-title">📍 Location Details</div>
+        <div class="row">
+          <div class="form-group">
+            <label>Department</label>
+            <select id="scanDept" class="form-control">
+              <option value="">Select...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Building</label>
+            <input id="scanBuilding" class="form-control" type="text" placeholder="Main Block">
+          </div>
+        </div>
+        <div class="row">
+          <div class="form-group">
+            <label>Floor</label>
+            <input id="scanFloor" class="form-control" type="text" placeholder="1st">
+          </div>
+          <div class="form-group">
+            <label>Room No.</label>
+            <input id="scanRoom" class="form-control" type="text" placeholder="101">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Lab / Area Name</label>
+          <input id="scanLab" class="form-control" type="text" placeholder="Computer Lab A">
+        </div>
+        <div class="form-group">
+          <label>Asset Type</label>
+          <select id="scanAssetType" class="form-control">
+            <option value="">Select type...</option>
+            <option>CPU</option><option>Monitor</option><option>Keyboard</option>
+            <option>Mouse</option><option>Laptop</option><option>Printer</option>
+            <option>Scanner</option><option>UPS</option><option>Router</option>
+            <option>Switch</option><option>Projector</option><option>Other</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="showScanMethods()" style="margin-bottom:16px;">▶ Start Scanning</button>
+      </div>
+
+      <!-- Scan Methods -->
+      <div id="scanMethodSection" style="display:none">
+        <div class="section-title">🎯 Choose Scan Method</div>
+        <div class="quick-grid" style="margin-bottom:16px;">
+          <div class="quick-btn" onclick="openCameraScanner()"><div class="qi">📷</div><div class="qt">QR / Barcode</div></div>
+          <div class="quick-btn" onclick="openOCRScanner()"><div class="qi">🔍</div><div class="qt">OCR Photo</div></div>
+          <div class="quick-btn" onclick="openManualEntry()"><div class="qi">⌨️</div><div class="qt">Manual Entry</div></div>
+          <div class="quick-btn" onclick="document.getElementById('collectionInfoSection').style.display='';document.getElementById('scanMethodSection').style.display='none'"><div class="qi">✏️</div><div class="qt">Edit Location</div></div>
+        </div>
+
+        <!-- Camera Scanner -->
+        <div id="cameraScanSection" style="display:none">
+          <div class="section-title">📷 QR / Barcode Scanner</div>
+          <div id="cameraInputMode">
+            <div style="background:rgba(56,189,248,0.08);border:1.5px solid var(--accent);border-radius:var(--radius);padding:14px;margin-bottom:14px;font-size:13px;color:var(--text2);">
+              💡 <strong style="color:var(--text)">How to scan:</strong> Tap the button below → your phone camera opens → point at the QR/barcode → take photo → AI reads it automatically.
+            </div>
+            <input type="file" id="qrCamInput" accept="image/*" capture="environment" style="display:none" onchange="handleQRCapture(this)">
+            <input type="file" id="qrGalleryInput" accept="image/*" style="display:none" onchange="handleQRCapture(this)">
+            <button class="btn btn-primary btn-full" style="margin-bottom:10px;font-size:16px;padding:16px;" onclick="document.getElementById('qrCamInput').click()">
+              📷 Open Camera to Scan QR / Barcode
+            </button>
+            <button class="btn btn-secondary btn-full" style="margin-bottom:14px;" onclick="document.getElementById('qrGalleryInput').click()">
+              🖼️ Pick Image from Gallery
+            </button>
+            <div id="liveViewfinderWrap" style="display:none">
+              <div class="section-title" style="margin-bottom:8px;">📡 Live Camera (Auto-detect)</div>
+              <div class="scan-area">
+                <video id="videoEl" autoplay muted playsinline></video>
+                <div class="scan-overlay">
+                  <div class="scan-frame">
+                    <div class="corner-bl"></div><div class="corner-br"></div>
+                    <div class="scan-line"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="scan-toolbar">
+                <button class="btn btn-secondary btn-sm" onclick="toggleFlash()" id="flashBtn">🔦 Flash</button>
+                <button class="btn btn-secondary btn-sm" onclick="captureFromVideo()">📸 Capture Frame</button>
+                <button class="btn btn-secondary btn-sm" onclick="hideLiveView()">✕ Close</button>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm btn-full" onclick="tryLiveCamera()" id="tryLiveBtn">📡 Try Live Camera View</button>
+          </div>
+          <div id="qrPhotoPreview" style="display:none;margin-top:12px;">
+            <img id="qrPhotoImg" style="width:100%;border-radius:var(--radius);display:block;" src="">
+            <div style="text-align:center;padding:10px;font-size:13px;color:var(--text2);">Analyzing image...</div>
+          </div>
+          <div class="scan-result-box" id="scanResultBox">
+            <div class="result-label">Scanned Value</div>
+            <div class="result-value" id="scanResultVal"></div>
+          </div>
+          <canvas id="scanCanvas" style="display:none;"></canvas>
+        </div>
+
+        <!-- OCR Scanner -->
+        <div id="ocrScanSection" style="display:none">
+          <div class="section-title" style="display:flex;align-items:center;gap:8px;">🔍 OCR Photo Scan <span class="ai-badge">📴 Offline</span></div>
+          <div style="background:rgba(52,211,153,0.08);border:1.5px solid var(--accent3);border-radius:var(--radius);padding:12px;margin-bottom:12px;font-size:13px;color:var(--text2);">
+            📴 <strong style="color:var(--text)">Works offline</strong> — Take a photo of the asset label sticker. The OCR engine reads text directly on your device.
+          </div>
+          <div id="ocrProgressWrap" style="display:none;margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:6px;" id="ocrProgressLabel">Loading...</div>
+            <div class="progress-bar"><div class="progress-fill" id="ocrProgressBar" style="width:0%"></div></div>
+          </div>
+          <div class="cam-placeholder" id="ocrPlaceholder" onclick="triggerCamera()">
+            <div class="ci">📷</div>
+            <div style="font-size:14px;font-weight:600;">Tap to Take Photo</div>
+            <div style="font-size:12px;">Point camera at asset sticker/label</div>
+          </div>
+          <div class="photo-preview" id="photoPreview"><img id="photoImg" src=""></div>
+          <input type="file" id="hiddenCamInput" accept="image/*" capture="environment" onchange="handlePhotoCapture(this)">
+          <input type="file" id="hiddenFileInput" accept="image/*" onchange="handlePhotoCapture(this)">
+          <button class="btn btn-secondary btn-sm" style="margin-bottom:12px;" onclick="document.getElementById('hiddenFileInput').click()">🖼️ Choose from Gallery</button>
+          <div class="ocr-result-area" id="ocrResultArea">
+            <div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+              <div class="section-title" style="margin:0">Detected Text</div>
+              <div class="ai-badge">✨ AI Extracted</div>
+            </div>
+            <div id="ocrTokens" style="margin-bottom:12px;"></div>
+            <div class="divider"></div>
+            <div class="info-row">
+              <div class="key">Serial Number</div>
+              <div class="val" id="ocrSerial" style="color:var(--accent)">—</div>
+            </div>
+            <div class="info-row">
+              <div class="key">Brand</div>
+              <div class="val" id="ocrBrand">—</div>
+            </div>
+            <div class="info-row">
+              <div class="key">Model</div>
+              <div class="val" id="ocrModel">—</div>
+            </div>
+            <div class="info-row">
+              <div class="key">Confidence</div>
+              <div class="val" id="ocrConfidence"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Entry -->
+        <div id="manualSection" style="display:none">
+          <div class="section-title">⌨️ Manual Entry</div>
+          <div class="form-group">
+            <label>Serial Number *</label>
+            <input id="manualSerial" class="form-control" type="text" placeholder="Enter serial number">
+          </div>
+          <div class="form-group">
+            <label>Brand</label>
+            <select id="manualBrand" class="form-control">
+              <option value="">Select brand...</option>
+              <option>Dell</option><option>HP</option><option>Lenovo</option><option>Acer</option>
+              <option>Asus</option><option>Samsung</option><option>LG</option><option>Logitech</option>
+              <option>Microsoft</option><option>Apple</option><option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Model</label>
+            <input id="manualModel" class="form-control" type="text" placeholder="e.g. OptiPlex 7080">
+          </div>
+          <div class="form-group">
+            <label>Asset Tag</label>
+            <input id="manualAssetTag" class="form-control" type="text" placeholder="Optional">
+          </div>
+        </div>
+
+        <!-- Duplicate Alert -->
+        <div class="duplicate-alert" id="duplicateAlert">
+          <div style="font-size:14px;font-weight:700;color:var(--danger);margin-bottom:6px;">⚠️ Duplicate Serial Number Found</div>
+          <div id="duplicateInfo" style="font-size:12px;color:var(--text2);"></div>
+        </div>
+
+        <!-- Remarks -->
+        <div class="form-group" id="remarksSection" style="display:none">
+          <label>Remarks</label>
+          <textarea id="scanRemarks" class="form-control" placeholder="Optional notes..."></textarea>
+        </div>
+        <div class="form-group" id="statusSection" style="display:none">
+          <label>Status</label>
+          <select id="scanStatus" class="form-control">
+            <option value="Active">Active</option>
+            <option value="Disposed">Disposed</option>
+            <option value="Repair">Repair</option>
+            <option value="Transferred">Transferred</option>
+          </select>
+        </div>
+
+        <!-- Add to Queue Button -->
+        <div id="saveAssetSection" style="display:none;margin-top:8px;">
+          <button class="btn btn-primary btn-full" onclick="addToQueue()" style="margin-bottom:8px;font-size:16px;padding:14px;">➕ Add to List & Scan Next</button>
+        </div>
+
+        <!-- Session Queue -->
+        <div id="sessionQueueSection" style="display:none;margin-top:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="section-title" style="margin:0;">📋 Scanned Items (<span id="queueCount">0</span>)</div>
+            <button class="btn btn-sm btn-danger" onclick="clearQueue()">🗑️ Clear</button>
+          </div>
+          <div id="queueList" style="max-height:220px;overflow-y:auto;margin-bottom:12px;"></div>
+          <button class="btn btn-success btn-full" onclick="saveQueueAndDownload()" style="font-size:16px;padding:15px;">
+            💾 Save All &amp; Download Excel (<span id="queueCountBtn">0</span> items)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ASSETS LIST PAGE -->
+  <div id="assetsPage" class="page" style="display:none">
+    <div class="topbar">
+      <button class="topbar-back" onclick="showPage('dashPage')">‹</button>
+      <div class="topbar-title">Asset Inventory</div>
+      <button class="btn btn-sm btn-primary" onclick="exportExcel()">⬇️ XLS</button>
+    </div>
+    <div class="content">
+      <input class="search-bar" type="text" placeholder="🔍 Search serial, dept, room, type..." id="assetSearch" oninput="renderAssets()">
+      <div class="filter-row" id="filterRow">
+        <div class="filter-chip active" onclick="setFilter('all',this)">All</div>
+        <div class="filter-chip" onclick="setFilter('CPU',this)">CPU</div>
+        <div class="filter-chip" onclick="setFilter('Monitor',this)">Monitor</div>
+        <div class="filter-chip" onclick="setFilter('Laptop',this)">Laptop</div>
+        <div class="filter-chip" onclick="setFilter('Printer',this)">Printer</div>
+        <div class="filter-chip" onclick="setFilter('UPS',this)">UPS</div>
+      </div>
+      <div id="assetsList"></div>
+    </div>
+    <button class="fab" onclick="showPage('scanPage')">＋</button>
+  </div>
+
+  <!-- REPORTS PAGE -->
+  <div id="reportsPage" class="page" style="display:none">
+    <div class="topbar">
+      <button class="topbar-back" onclick="showPage('dashPage')">‹</button>
+      <div class="topbar-title">Reports & Analytics</div>
+      <button class="btn btn-sm btn-secondary" onclick="exportExcel()">📥</button>
+    </div>
+    <div class="content">
+      <div class="stat-card accent-blue" style="margin-bottom:16px;text-align:center;">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:4px;">TOTAL ASSETS IN DATABASE</div>
+        <div style="font-size:42px;font-weight:800;color:var(--accent)" id="reportTotal">0</div>
+      </div>
+      <div class="section-title">Assets by Type</div>
+      <div id="chartByType" class="chart-bar-wrap"></div>
+      <div class="divider"></div>
+      <div class="section-title">Assets by Department</div>
+      <div id="chartByDept" class="chart-bar-wrap"></div>
+      <div class="divider"></div>
+      <div class="section-title">Assets by Source</div>
+      <div id="chartBySource" class="chart-bar-wrap"></div>
+      <div class="divider"></div>
+      <div class="section-title">Export Options</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-success btn-full" onclick="exportExcel()">📥 Export All to Excel</button>
+        <button class="btn btn-secondary btn-full" onclick="showExportModal()">🔧 Export with Filters</button>
+        <button class="btn btn-purple btn-full" onclick="exportPDF()">📄 Export PDF Summary</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div id="settingsPage" class="page" style="display:none">
+    <div class="topbar">
+      <button class="topbar-back" onclick="showPage('dashPage')">‹</button>
+      <div class="topbar-title">Settings</div>
+    </div>
+    <div class="content">
+      <div class="section-title">Organization</div>
+      <div class="settings-item" onclick="openDeptModal()">
+        <div class="si-left">
+          <div class="si-icon">🏢</div>
+          <div><div class="si-text">Departments</div><div class="si-sub" id="deptCount">0 departments</div></div>
+        </div>
+        <div style="color:var(--text2)">›</div>
+      </div>
+      <div class="settings-item" onclick="openBuildingModal()">
+        <div class="si-left">
+          <div class="si-icon">🏗️</div>
+          <div><div class="si-text">Buildings</div><div class="si-sub" id="buildingCount">0 buildings</div></div>
+        </div>
+        <div style="color:var(--text2)">›</div>
+      </div>
+      <div class="settings-item" onclick="openOrgModal()">
+        <div class="si-left">
+          <div class="si-icon">🏛️</div>
+          <div><div class="si-text">Organization Name</div><div class="si-sub" id="orgNameDisplay">Not set</div></div>
+        </div>
+        <div style="color:var(--text2)">›</div>
+      </div>
+      <div class="divider"></div>
+      <div class="section-title">Data Management</div>
+      <div class="settings-item" onclick="exportExcel()">
+        <div class="si-left"><div class="si-icon">📥</div><div><div class="si-text">Export to Excel</div><div class="si-sub">Download all assets</div></div></div>
+        <div style="color:var(--text2)">›</div>
+      </div>
+      <div class="settings-item" onclick="clearAllData()">
+        <div class="si-left"><div class="si-icon">🗑️</div><div><div class="si-text">Clear All Data</div><div class="si-sub">Delete all assets</div></div></div>
+        <div style="color:var(--danger)">›</div>
+      </div>
+      <div class="settings-item" onclick="showImportModal()">
+        <div class="si-left"><div class="si-icon">📤</div><div><div class="si-text">Import Data</div><div class="si-sub">Import from Excel/CSV</div></div></div>
+        <div style="color:var(--text2)">›</div>
+      </div>
+      <div class="divider"></div>
+      <div class="section-title">App Info</div>
+      <div class="settings-item">
+        <div class="si-left"><div class="si-icon">ℹ️</div><div><div class="si-text">Version</div><div class="si-sub">Asset Scanner Pro v1.0</div></div></div>
+      </div>
+      <div class="settings-item">
+        <div class="si-left"><div class="si-icon">💾</div><div><div class="si-text">Storage</div><div class="si-sub" id="storageInfo">Calculating...</div></div></div>
+      </div>
+      <div class="settings-item" onclick="doLogout()">
+        <div class="si-left"><div class="si-icon">↩️</div><div><div class="si-text">Logout</div><div class="si-sub" id="loggedInAs">—</div></div></div>
+        <div style="color:var(--danger)">›</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-item active" id="nav-dash" onclick="showPage('dashPage');setNav('nav-dash')">
+      <div class="nav-icon">📊</div><div>Dashboard</div>
+    </button>
+    <button class="nav-item" id="nav-scan" onclick="showPage('scanPage');setNav('nav-scan')">
+      <div class="nav-icon">📷</div><div>Scan</div>
+    </button>
+    <button class="nav-item" id="nav-assets" onclick="showPage('assetsPage');setNav('nav-assets')">
+      <div class="nav-icon">📋</div><div>Assets</div>
+    </button>
+    <button class="nav-item" id="nav-reports" onclick="showPage('reportsPage');setNav('nav-reports')">
+      <div class="nav-icon">📈</div><div>Reports</div>
+    </button>
+  </div>
+</div>
+
+<!-- ===================== MODALS ===================== -->
+<!-- Asset Detail Modal -->
+<div class="modal-overlay modal-center" id="assetDetailModal">
+  <div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="modal-title" style="margin:0">Asset Details</div>
+      <button onclick="closeModal('assetDetailModal')" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="assetDetailContent"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-full" onclick="closeModal('assetDetailModal')">Close</button>
+      <button class="btn btn-danger btn-full" id="deleteAssetBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Mode Modal -->
+<div class="modal-overlay" id="bulkModal">
+  <div class="modal">
+    <div class="modal-title">🔁 Bulk Audit Mode</div>
+    <div class="form-group">
+      <label>Asset Type to Scan</label>
+      <select id="bulkAssetType" class="form-control">
+        <option value="">Select type...</option>
+        <option>CPU</option><option>Monitor</option><option>Keyboard</option>
+        <option>Mouse</option><option>Laptop</option><option>Printer</option>
+        <option>Scanner</option><option>UPS</option><option>Router</option>
+        <option>Switch</option><option>Projector</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Department</label>
+      <select id="bulkDept" class="form-control"><option value="">All Departments</option></select>
+    </div>
+    <div class="bulk-counter">
+      <div class="bc-num" id="bulkCount">0</div>
+      <div class="bc-label" id="bulkCountLabel">Assets Scanned</div>
+    </div>
+    <div class="recent-list" id="bulkRecentList"></div>
+    <div class="scan-result-box show" id="bulkResultBox" style="margin-top:12px;display:none!important;">
+      <div class="result-label">Last Scanned</div>
+      <div class="result-value" id="bulkLastScanned">—</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('bulkModal');stopCamera()">Done</button>
+      <button class="btn btn-primary" onclick="startBulkScan()">📷 Scan Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dept Modal -->
+<div class="modal-overlay modal-center" id="deptModal">
+  <div class="modal">
+    <div class="modal-title">🏢 Manage Departments</div>
+    <div class="form-group">
+      <label>Add Department</label>
+      <div style="display:flex;gap:8px;">
+        <input id="newDeptInput" class="form-control" type="text" placeholder="Department name">
+        <button class="btn btn-primary" onclick="addDepartment()">Add</button>
+      </div>
+    </div>
+    <div id="deptList" style="max-height:200px;overflow-y:auto;"></div>
+    <button class="btn btn-secondary btn-full" onclick="closeModal('deptModal');refreshDeptDropdowns()" style="margin-top:16px;">Done</button>
+  </div>
+</div>
+
+<!-- Building Modal -->
+<div class="modal-overlay modal-center" id="buildingModal">
+  <div class="modal">
+    <div class="modal-title">🏗️ Manage Buildings</div>
+    <div class="form-group">
+      <label>Add Building</label>
+      <div style="display:flex;gap:8px;">
+        <input id="newBuildingInput" class="form-control" type="text" placeholder="Building name">
+        <button class="btn btn-primary" onclick="addBuilding()">Add</button>
+      </div>
+    </div>
+    <div id="buildingList" style="max-height:200px;overflow-y:auto;"></div>
+    <button class="btn btn-secondary btn-full" onclick="closeModal('buildingModal')" style="margin-top:16px;">Done</button>
+  </div>
+</div>
+
+<!-- Org Modal -->
+<div class="modal-overlay modal-center" id="orgModal">
+  <div class="modal">
+    <div class="modal-title">🏛️ Organization</div>
+    <div class="form-group">
+      <label>Organization Name</label>
+      <input id="orgNameInput" class="form-control" type="text" placeholder="e.g. Springfield College">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('orgModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOrg()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay modal-center" id="exportModal">
+  <div class="modal">
+    <div class="modal-title">📥 Export Options</div>
+    <div class="form-group">
+      <label>Export Type</label>
+      <select id="exportType" class="form-control">
+        <option value="all">All Assets</option>
+        <option value="dept">By Department</option>
+        <option value="type">By Asset Type</option>
+      </select>
+    </div>
+    <div class="form-group" id="exportDeptGroup">
+      <label>Department</label>
+      <select id="exportDept" class="form-control"><option value="">All</option></select>
+    </div>
+    <div class="form-group" id="exportTypeGroup">
+      <label>Asset Type</label>
+      <select id="exportAssetTypeFilter" class="form-control">
+        <option value="">All</option>
+        <option>CPU</option><option>Monitor</option><option>Keyboard</option>
+        <option>Mouse</option><option>Laptop</option><option>Printer</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('exportModal')">Cancel</button>
+      <button class="btn btn-success" onclick="doFilteredExport()">Export Excel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script>
+// =============================================
+// DATABASE (IndexedDB + localStorage fallback)
+// =============================================
+const DB_NAME = 'AssetScannerPro';
+const DB_VERSION = 1;
+let db = null;
+let currentUser = null;
+let cameraStream = null;
+let flashEnabled = false;
+let currentFilter = 'all';
+let bulkAssetCount = 0;
+let bulkItems = [];
+let pendingSerial = '';
+let pendingBrand = '';
+let pendingModel = '';
+let pendingSource = '';
+let ocrImageData = null;
+let sessionQueue = [];
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { db = req.result; resolve(db); };
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('assets')) {
+        const store = d.createObjectStore('assets', { keyPath: 'id', autoIncrement: true });
+        store.createIndex('serial', 'serialNumber', { unique: false });
+        store.createIndex('dept', 'department', { unique: false });
+        store.createIndex('type', 'assetType', { unique: false });
+        store.createIndex('date', 'date', { unique: false });
+      }
+      if (!d.objectStoreNames.contains('settings')) {
+        d.createObjectStore('settings', { keyPath: 'key' });
+      }
+    };
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbPut(store, obj) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).put(obj);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbAdd(store, obj) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).add(obj);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbClear(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getSetting(key, def = null) {
+  try {
+    const tx = db.transaction('settings', 'readonly');
+    return await new Promise((res) => {
+      const req = tx.objectStore('settings').get(key);
+      req.onsuccess = () => res(req.result ? req.result.value : def);
+      req.onerror = () => res(def);
+    });
+  } catch { return def; }
+}
+
+async function setSetting(key, value) {
+  await dbPut('settings', { key, value });
+}
+
+// =============================================
+// APP STATE
+// =============================================
+let departments = [];
+let buildings = [];
+let orgName = 'My Organization';
+
+async function loadSettings() {
+  departments = await getSetting('departments', ['IT Dept', 'Admin', 'Library', 'Lab']);
+  buildings = await getSetting('buildings', ['Main Block', 'Block B']);
+  orgName = await getSetting('orgName', 'My Organization');
+  refreshDeptDropdowns();
+  updateSettingsUI();
+}
+
+function updateSettingsUI() {
+  document.getElementById('deptCount').textContent = `${departments.length} departments`;
+  document.getElementById('buildingCount').textContent = `${buildings.length} buildings`;
+  document.getElementById('orgNameDisplay').textContent = orgName;
+}
+
+function refreshDeptDropdowns() {
+  const ids = ['scanDept','bulkDept','exportDept'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const currentVal = el.value;
+    const hasAll = id !== 'scanDept';
+    el.innerHTML = hasAll ? '<option value="">All Departments</option>' : '<option value="">Select...</option>';
+    departments.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      el.appendChild(opt);
+    });
+    if (currentVal) el.value = currentVal;
+  });
+  updateSettingsUI();
+}
+
+// =============================================
+// AUTH
+// =============================================
+function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value.trim();
+  if (!email) { showToast('Please enter email', 'error'); return; }
+  if (!pass) { showToast('Please enter password', 'error'); return; }
+  currentUser = { email, role: email.includes('admin') ? 'Admin' : 'Staff', name: email.split('@')[0] };
+  localStorage.setItem('assetProUser', JSON.stringify(currentUser));
+  document.getElementById('loginScreen').classList.remove('active');
+  document.getElementById('appScreen').classList.add('active');
+  document.getElementById('loggedInAs').textContent = `Logged in as ${currentUser.email}`;
+  initApp();
+}
+
+function doLogout() {
+  stopCamera();
+  localStorage.removeItem('assetProUser');
+  document.getElementById('appScreen').classList.remove('active');
+  document.getElementById('loginScreen').classList.add('active');
+  showPage('dashPage');
+}
+
+function checkSession() {
+  const saved = localStorage.getItem('assetProUser');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      document.getElementById('loginScreen').classList.remove('active');
+      document.getElementById('appScreen').classList.add('active');
+      document.getElementById('loggedInAs').textContent = `Logged in as ${currentUser.email}`;
+      initApp();
+      return true;
+    } catch {}
+  }
+  return false;
+}
+
+// =============================================
+// INIT
+// =============================================
+async function initApp() {
+  await loadSettings();
+  updateDashboard();
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  updateStorageInfo();
+}
+
+// =============================================
+// NAVIGATION
+// =============================================
+function showPage(pageId) {
+  document.querySelectorAll('#appScreen .page').forEach(p => p.style.display = 'none');
+  document.getElementById(pageId).style.display = 'flex';
+  document.getElementById(pageId).style.flexDirection = 'column';
+  document.getElementById(pageId).style.minHeight = '100vh';
+
+  if (pageId === 'dashPage') { updateDashboard(); setNav('nav-dash'); }
+  if (pageId === 'assetsPage') { renderAssets(); setNav('nav-assets'); }
+  if (pageId === 'reportsPage') { renderReports(); setNav('nav-reports'); }
+  if (pageId === 'scanPage') {
+    setNav('nav-scan');
+    document.getElementById('collectionInfoSection').style.display = '';
+    document.getElementById('scanMethodSection').style.display = 'none';
+    resetScanForm();
+  }
+  if (pageId !== 'scanPage') stopCamera();
+}
+
+function setNav(activeId) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = document.getElementById(activeId);
+  if (el) el.classList.add('active');
+}
+
+// =============================================
+// DASHBOARD
+// =============================================
+async function updateDashboard() {
+  const assets = await dbGetAll('assets');
+  const today = new Date().toISOString().split('T')[0];
+  const todayCount = assets.filter(a => a.date && a.date.startsWith(today)).length;
+  const serials = assets.map(a => a.serialNumber).filter(Boolean);
+  const dupes = serials.length - new Set(serials).size;
+  const depts = new Set(assets.map(a => a.department).filter(Boolean)).size;
+
+  document.getElementById('statTotal').textContent = assets.length;
+  document.getElementById('statToday').textContent = todayCount;
+  document.getElementById('statDupe').textContent = dupes;
+  document.getElementById('statPending').textContent = 0;
+  document.getElementById('statDepts').textContent = depts;
+
+  const recent = assets.slice(-5).reverse();
+  const ra = document.getElementById('recentActivity');
+  if (recent.length === 0) {
+    ra.innerHTML = '<div class="empty-state"><div class="ei">📦</div><p>No assets yet. Start scanning!</p></div>';
+  } else {
+    ra.innerHTML = recent.map(a => `
+      <div class="asset-card" onclick="viewAsset(${a.id})">
+        <div class="asset-card-header">
+          <div class="asset-type-badge">${a.assetType || 'Asset'}</div>
+          <div class="source-badge ${(a.source||'').toLowerCase()}">${a.source || '—'}</div>
+        </div>
+        <div class="serial">${a.serialNumber || 'No serial'}</div>
+        <div class="meta">${a.department || '—'} · ${a.brand || ''} ${a.model || ''}</div>
+        <div class="meta" style="margin-top:2px;">${formatDate(a.date)}</div>
+      </div>
+    `).join('');
+  }
+}
+
+// =============================================
+// SCAN FLOW
+// =============================================
+function showScanMethods() {
+  document.getElementById('collectionInfoSection').style.display = 'none';
+  document.getElementById('scanMethodSection').style.display = '';
+  document.getElementById('remarksSection').style.display = '';
+  document.getElementById('statusSection').style.display = '';
+}
+
+function openCameraScanner() {
+  hideAllScanMethods();
+  document.getElementById('cameraScanSection').style.display = '';
+  document.getElementById('saveAssetSection').style.display = 'none';
+  document.getElementById('qrPhotoPreview').style.display = 'none';
+  document.getElementById('scanResultBox').classList.remove('show');
+  showToast('📷 Tap the button to open camera', 'info');
+}
+
+async function handleQRCapture(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const imgData = e.target.result;
+    document.getElementById('qrPhotoImg').src = imgData;
+    document.getElementById('qrPhotoPreview').style.display = '';
+    showToast('🔍 Detecting QR/Barcode...', 'info');
+
+    if ('BarcodeDetector' in window) {
+      try {
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.getElementById('scanCanvas');
+          canvas.width = img.width; canvas.height = img.height;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          const detector = new BarcodeDetector({ formats: ['qr_code','code_128','code_39','ean_13','upc_a','data_matrix','pdf417','aztec'] });
+          const barcodes = await detector.detect(canvas);
+          if (barcodes.length > 0) {
+            const val = barcodes[0].rawValue;
+            const fmt = barcodes[0].format || '';
+            onScanResult(val, fmt.includes('qr') ? 'QR' : 'Barcode');
+            document.getElementById('qrPhotoPreview').querySelector('div').textContent = '✅ Code detected!';
+          } else {
+            runOCROnImage(imgData);
+            document.getElementById('qrPhotoPreview').querySelector('div').textContent = 'No barcode found – trying AI OCR...';
+          }
+        };
+        img.src = imgData;
+        return;
+      } catch(err) {
+        console.log('BarcodeDetector error:', err);
+      }
+    }
+
+    document.getElementById('qrPhotoPreview').querySelector('div').textContent = '🤖 Running AI analysis...';
+    runOCROnImage(imgData);
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+async function tryLiveCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Live camera not available in Brave for local files. Use the button above ☝️', 'error');
+    return;
+  }
+  try {
+    const constraints = { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } };
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const vid = document.getElementById('videoEl');
+    vid.srcObject = cameraStream;
+    await vid.play();
+    document.getElementById('liveViewfinderWrap').style.display = '';
+    document.getElementById('tryLiveBtn').style.display = 'none';
+    showToast('✅ Live camera started!', 'success');
+    startAutoDetect();
+  } catch (e) {
+    let msg = 'Camera blocked. ';
+    if (e.name === 'NotAllowedError') msg += 'Permission denied – use the "Open Camera" button above instead.';
+    else if (e.name === 'NotFoundError') msg += 'No camera found.';
+    else msg += e.message;
+    showToast(msg, 'error');
+  }
+}
+
+function hideLiveView() {
+  stopCamera();
+  document.getElementById('liveViewfinderWrap').style.display = 'none';
+  document.getElementById('tryLiveBtn').style.display = '';
+}
+
+function startAutoDetect() {
+  const vid = document.getElementById('videoEl');
+  const canvas = document.getElementById('scanCanvas');
+  const ctx = canvas.getContext('2d');
+  if (!('BarcodeDetector' in window)) {
+    showToast('Point camera and tap Capture Frame', 'info'); return;
+  }
+  const detector = new BarcodeDetector({ formats: ['qr_code','code_128','code_39','ean_13','upc_a','data_matrix'] });
+  const loop = async () => {
+    if (!cameraStream) return;
+    if (vid.readyState >= 2) {
+      canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+      ctx.drawImage(vid, 0, 0);
+      try {
+        const barcodes = await detector.detect(canvas);
+        if (barcodes.length > 0) {
+          const val = barcodes[0].rawValue;
+          const fmt = barcodes[0].format || '';
+          stopCamera();
+          document.getElementById('liveViewfinderWrap').style.display = 'none';
+          document.getElementById('tryLiveBtn').style.display = '';
+          onScanResult(val, fmt.includes('qr') ? 'QR' : 'Barcode');
+          return;
+        }
+      } catch {}
+    }
+    if (cameraStream) setTimeout(loop, 300);
+  };
+  loop();
+}
+
+function captureFromVideo() {
+  const vid = document.getElementById('videoEl');
+  const canvas = document.getElementById('scanCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = vid.videoWidth || 640;
+  canvas.height = vid.videoHeight || 480;
+  ctx.drawImage(vid, 0, 0);
+  const imgData = canvas.toDataURL('image/jpeg', 0.9);
+  stopCamera();
+  document.getElementById('liveViewfinderWrap').style.display = 'none';
+  document.getElementById('tryLiveBtn').style.display = '';
+  showToast('🔍 Analyzing captured frame...', 'info');
+  if ('BarcodeDetector' in window) {
+    const detector = new BarcodeDetector({ formats: ['qr_code','code_128','code_39','ean_13','upc_a','data_matrix'] });
+    const img = new Image(); img.onload = async () => {
+      const c2 = document.getElementById('scanCanvas');
+      c2.width = img.width; c2.height = img.height;
+      c2.getContext('2d').drawImage(img,0,0);
+      const results = await detector.detect(c2).catch(()=>[]);
+      if (results.length > 0) onScanResult(results[0].rawValue, 'QR');
+      else runOCROnImage(imgData);
+    };
+    img.src = imgData;
+  } else {
+    runOCROnImage(imgData);
+  }
+}
+
+function captureFrame() { captureFromVideo(); }
+
+function onScanResult(value, source) {
+  pendingSerial = value;
+  pendingSource = source;
+  document.getElementById('scanResultBox').classList.add('show');
+  document.getElementById('scanResultVal').textContent = value;
+  document.getElementById('saveAssetSection').style.display = '';
+  checkDuplicate(value);
+  showToast(`${source} scanned: ${value}`, 'success');
+}
+
+function toggleFlash() {
+  if (!cameraStream) return;
+  const track = cameraStream.getVideoTracks()[0];
+  if (!track) return;
+  flashEnabled = !flashEnabled;
+  track.applyConstraints({ advanced: [{ torch: flashEnabled }] })
+    .then(() => document.getElementById('flashBtn').textContent = flashEnabled ? '🔦 Flash ON' : '🔦 Flash')
+    .catch(() => showToast('Flash not supported on this device', 'error'));
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const lv = document.getElementById('liveViewfinderWrap');
+  if (lv) lv.style.display = 'none';
+  const lb = document.getElementById('tryLiveBtn');
+  if (lb) lb.style.display = '';
+}
+
+// =============================================
+// OFFLINE OCR ENGINE (Tesseract.js)
+// =============================================
+let tesseractWorker = null;
+let tesseractReady = false;
+let tesseractLoading = false;
+
+async function initTesseract() {
+  if (tesseractReady || tesseractLoading) return;
+  tesseractLoading = true;
+  try {
+    showToast('📦 Loading offline OCR engine (first time only)...', 'info');
+    tesseractWorker = await Tesseract.createWorker('eng', 1, {
+      workerPath: 'https://unpkg.com/tesseract.js@5.1.0/dist/worker.min.js',
+      langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+      corePath: 'https://unpkg.com/tesseract.js-core@5.1.0/tesseract-core-simd-lstm.wasm.js',
+      logger: m => {
+        if (m.status === 'loading tesseract core' || m.status === 'initializing tesseract') {
+          updateOCRProgress('Loading engine...', m.progress || 0);
+        } else if (m.status === 'loading language traineddata') {
+          updateOCRProgress('Downloading language data (first time)...', m.progress || 0);
+        } else if (m.status === 'initializing api') {
+          updateOCRProgress('Starting OCR...', m.progress || 0);
+        }
+      }
+    });
+    await tesseractWorker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/:. ',
+      preserve_interword_spaces: '1',
+    });
+    tesseractReady = true;
+    tesseractLoading = false;
+    showToast('✅ OCR engine ready! (works offline now)', 'success');
+  } catch (e) {
+    tesseractLoading = false;
+    console.error('Tesseract init failed:', e);
+    showToast('OCR engine failed to load. Check internet for first-time setup.', 'error');
+  }
+}
+
+function updateOCRProgress(label, progress) {
+  const el = document.getElementById('ocrProgressWrap');
+  const bar = document.getElementById('ocrProgressBar');
+  const lbl = document.getElementById('ocrProgressLabel');
+  if (el) el.style.display = '';
+  if (bar) bar.style.width = Math.round(progress * 100) + '%';
+  if (lbl) lbl.textContent = label;
+}
+
+function hideOCRProgress() {
+  const el = document.getElementById('ocrProgressWrap');
+  if (el) el.style.display = 'none';
+}
+
+function openOCRScanner() {
+  hideAllScanMethods();
+  document.getElementById('ocrScanSection').style.display = '';
+  document.getElementById('saveAssetSection').style.display = 'none';
+  pendingSource = 'OCR';
+  initTesseract();
+}
+
+function triggerCamera() {
+  document.getElementById('hiddenCamInput').click();
+}
+
+function handlePhotoCapture(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const imgData = e.target.result;
+    ocrImageData = imgData;
+    document.getElementById('photoImg').src = imgData;
+    document.getElementById('photoPreview').style.display = '';
+    document.getElementById('ocrPlaceholder').style.display = 'none';
+    runOCROnImage(imgData);
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+async function runOCROnImage(imgData) {
+  showToast('🔍 Reading image with offline OCR...', 'info');
+  updateOCRProgress('Preparing...', 0.05);
+
+  if (!tesseractReady) {
+    await initTesseract();
+  }
+  if (!tesseractReady) {
+    showToast('OCR not ready. Try again.', 'error');
+    hideOCRProgress();
+    return;
+  }
+
+  try {
+    updateOCRProgress('Scanning image...', 0.3);
+    const result = await tesseractWorker.recognize(imgData);
+    hideOCRProgress();
+    const rawText = result.data.text || '';
+    const confidence = Math.round(result.data.confidence || 0);
+    parseAndDisplayOCR(rawText, confidence);
+  } catch (e) {
+    hideOCRProgress();
+    console.error('OCR error:', e);
+    showToast('OCR failed – please enter manually', 'error');
+    showManualFallback();
+  }
+}
+
+function parseAndDisplayOCR(rawText, ocrConfidence) {
+  const text = rawText.trim();
+
+  const snPatterns = [
+    { re: /S\/N\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-]{4,20})/i,        label: 'S/N' },
+    { re: /SER(?:IAL)?\s*(?:NO?|NUM(?:BER)?)\s*[:\-#]?\s*([A-Z0-9][A-Z0-9\-]{4,20})/i, label: 'Serial' },
+    { re: /SERVICE\s*TAG\s*[:\-]?\s*([A-Z0-9]{4,12})/i,          label: 'Service Tag' },
+    { re: /ASSET\s*TAG\s*[:\-]?\s*([A-Z0-9\-]{4,15})/i,          label: 'Asset Tag' },
+    { re: /P\/N\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-]{6,20})/i,         label: 'Part No' },
+    { re: /MODEL\s*[:\-]?\s*([A-Z0-9][\w\-]{4,18})/i,            label: 'Model' },
+    { re: /\b([A-Z]{1,4}[0-9]{5,}[A-Z0-9]*)\b/,                  label: 'Auto' },
+    { re: /\b([A-Z0-9]{3,6}-[A-Z0-9]{3,8}(?:-[A-Z0-9]{2,8})?)\b/, label: 'Auto' },
+  ];
+
+  let serialNumber = '';
+  let serialLabel = '';
+  for (const { re, label } of snPatterns) {
+    const m = text.match(re);
+    if (m && m[1] && m[1].length >= 4) {
+      serialNumber = m[1].toUpperCase().trim();
+      serialLabel = label;
+      break;
+    }
+  }
+
+  const brandList = [
+    'Dell','HP','Hewlett-Packard','Lenovo','Acer','Asus','Samsung','LG',
+    'Logitech','Microsoft','Apple','Canon','Epson','Brother','Toshiba',
+    'Fujitsu','NEC','Panasonic','Sony','Xerox','Ricoh','Konica','Kyocera',
+    'HCL','Wipro','Compaq','IBM','Cisco','D-Link','TP-Link'
+  ];
+  let brand = '';
+  for (const b of brandList) {
+    if (text.toLowerCase().includes(b.toLowerCase())) { brand = b; break; }
+  }
+
+  let model = '';
+  const modelPatterns = [
+    /MODEL\s*[:\-]?\s*([\w\-\s]{4,24})/i,
+    /(?:TYPE|PRODUCT)\s*[:\-]?\s*([\w\-]{4,20})/i,
+  ];
+  for (const re of modelPatterns) {
+    const m = text.match(re);
+    if (m) { model = m[1].trim(); break; }
+  }
+
+  let confidence = Math.round(ocrConfidence * 0.6);
+  if (serialNumber) confidence = Math.min(95, confidence + 30);
+  if (brand) confidence = Math.min(98, confidence + 10);
+
+  displayOCRResult({
+    allText: text,
+    serialNumber,
+    serialLabel,
+    brand,
+    model,
+    confidence
+  });
+}
+
+function displayOCRResult(result) {
+  const area = document.getElementById('ocrResultArea');
+  area.style.display = '';
+
+  const tokensEl = document.getElementById('ocrTokens');
+  const words = (result.allText || '').split(/\s+/).filter(w => w.length > 1);
+  tokensEl.innerHTML = words.slice(0, 40).map(w => {
+    const clean = w.replace(/['"]/g, '');
+    const isSerial = result.serialNumber && clean.toUpperCase().includes(result.serialNumber.substring(0, 5).toUpperCase());
+    return `<span class="ocr-token ${isSerial ? 'serial' : 'normal'}" onclick="selectToken('${clean}')">${clean}</span>`;
+  }).join('');
+
+  const snLabel = result.serialLabel ? `Serial (${result.serialLabel})` : 'Serial Number';
+  document.getElementById('ocrSerial').textContent = result.serialNumber || '—';
+  document.getElementById('ocrBrand').textContent = result.brand || '—';
+  document.getElementById('ocrModel').textContent = result.model || '—';
+  const conf = result.confidence || 0;
+  document.getElementById('ocrConfidence').innerHTML =
+    `<span class="confidence-pill ${conf >= 70 ? 'high' : 'med'}">${conf >= 70 ? '✓' : '~'} ${conf}%</span>`;
+
+  const keyEl = document.querySelector('#ocrResultArea .info-row .key');
+  if (keyEl) keyEl.textContent = snLabel;
+
+  pendingSerial = result.serialNumber || '';
+  pendingBrand = result.brand || '';
+  pendingModel = result.model || '';
+  pendingSource = 'OCR';
+
+  document.getElementById('saveAssetSection').style.display = '';
+
+  if (pendingSerial) {
+    checkDuplicate(pendingSerial);
+    showToast(`✅ Found: ${pendingSerial}`, 'success');
+  } else {
+    showToast('No serial detected – tap a word token to select, or type manually', 'info');
+  }
+}
+
+function showManualFallback() {
+  document.getElementById('ocrResultArea').style.display = '';
+  document.getElementById('ocrSerial').textContent = '—';
+  document.getElementById('ocrBrand').textContent = '—';
+  document.getElementById('ocrModel').textContent = '—';
+  document.getElementById('ocrConfidence').innerHTML = '<span class="confidence-pill med">⚠ Manual required</span>';
+  document.getElementById('saveAssetSection').style.display = '';
+  document.getElementById('ocrTokens').innerHTML =
+    '<span style="font-size:13px;color:var(--text2)">Tap a word below or enter details manually</span>';
+}
+
+function selectToken(token) {
+  pendingSerial = token.toUpperCase();
+  document.getElementById('ocrSerial').textContent = pendingSerial;
+  document.getElementById('saveAssetSection').style.display = '';
+  checkDuplicate(pendingSerial);
+  showToast(`✅ Serial set to: ${pendingSerial}`, 'success');
+  document.querySelectorAll('.ocr-token').forEach(el => {
+    el.classList.toggle('serial', el.textContent === token);
+    el.classList.toggle('normal', el.textContent !== token);
+  });
+}
+
+function openManualEntry() {
+  hideAllScanMethods();
+  document.getElementById('manualSection').style.display = '';
+  document.getElementById('saveAssetSection').style.display = '';
+  pendingSource = 'Manual';
+}
+
+function hideAllScanMethods() {
+  ['cameraScanSection','ocrScanSection','manualSection'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  stopCamera();
+}
+
+async function checkDuplicate(serial) {
+  if (!serial) return;
+  const assets = await dbGetAll('assets');
+  const existing = assets.find(a => a.serialNumber && a.serialNumber.toLowerCase() === serial.toLowerCase());
+  const alert = document.getElementById('duplicateAlert');
+  if (existing) {
+    alert.classList.add('show');
+    document.getElementById('duplicateInfo').innerHTML = `
+      Already recorded in <strong>${existing.department || 'Unknown Dept'}</strong> on ${formatDate(existing.date)} as <strong>${existing.assetType || 'Asset'}</strong>
+    `;
+  } else {
+    alert.classList.remove('show');
+  }
+}
+
+function addToQueue() {
+  const assetType = document.getElementById('scanAssetType').value;
+  const dept = document.getElementById('scanDept').value;
+
+  let serial = pendingSerial;
+  let brand = pendingBrand;
+  let model = pendingModel;
+  let source = pendingSource;
+
+  if (document.getElementById('manualSection').style.display !== 'none') {
+    serial = document.getElementById('manualSerial').value.trim();
+    brand = document.getElementById('manualBrand').value;
+    model = document.getElementById('manualModel').value.trim();
+    source = 'Manual';
+  }
+
+  if (!serial) {
+    showToast('Serial number is required', 'error');
+    return;
+  }
+
+  const item = {
+    assetType: assetType || 'Other',
+    department: dept || '',
+    building: document.getElementById('scanBuilding').value.trim(),
+    floor: document.getElementById('scanFloor').value.trim(),
+    room: document.getElementById('scanRoom').value.trim(),
+    lab: document.getElementById('scanLab').value.trim(),
+    serialNumber: serial,
+    brand: brand || '',
+    model: model || '',
+    assetTag: document.getElementById('manualSection').style.display !== 'none' ? document.getElementById('manualAssetTag').value.trim() : '',
+    source: source,
+    remarks: document.getElementById('scanRemarks').value.trim(),
+    status: document.getElementById('scanStatus').value || 'Active',
+    date: new Date().toISOString(),
+    createdBy: currentUser ? currentUser.email : 'unknown',
+  };
+
+  sessionQueue.push(item);
+  renderQueue();
+  showToast(`✅ Added #${sessionQueue.length}: ${serial}`, 'success');
+
+  pendingSerial = ''; pendingBrand = ''; pendingModel = ''; pendingSource = '';
+  ocrImageData = null;
+  document.getElementById('scanResultBox').classList.remove('show');
+  document.getElementById('duplicateAlert').classList.remove('show');
+  document.getElementById('ocrResultArea').style.display = 'none';
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('ocrPlaceholder').style.display = '';
+  document.getElementById('saveAssetSection').style.display = 'none';
+  document.getElementById('manualSerial').value = '';
+  document.getElementById('manualBrand').value = '';
+  document.getElementById('manualModel').value = '';
+  document.getElementById('scanRemarks').value = '';
+  document.getElementById('hiddenCamInput').value = '';
+  document.getElementById('hiddenFileInput').value = '';
+  const qci = document.getElementById('qrCamInput');
+  if (qci) qci.value = '';
+  const qgi = document.getElementById('qrGalleryInput');
+  if (qgi) qgi.value = '';
+  const qpp = document.getElementById('qrPhotoPreview');
+  if (qpp) qpp.style.display = 'none';
+}
+
+function renderQueue() {
+  const section = document.getElementById('sessionQueueSection');
+  const listEl = document.getElementById('queueList');
+  const countEl = document.getElementById('queueCount');
+  const countBtn = document.getElementById('queueCountBtn');
+
+  if (sessionQueue.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  countEl.textContent = sessionQueue.length;
+  countBtn.textContent = sessionQueue.length;
+
+  listEl.innerHTML = sessionQueue.map((item, i) => `
+    <div class="queue-item">
+      <div class="qi-num">#${i + 1}</div>
+      <div style="flex:1">
+        <div class="qi-serial">${item.serialNumber}</div>
+        <div class="qi-meta">${item.assetType} · ${item.brand || ''} ${item.model || ''} · ${item.department || '—'}</div>
+      </div>
+      <button class="qi-del" onclick="removeFromQueue(${i})" title="Remove">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeFromQueue(idx) {
+  sessionQueue.splice(idx, 1);
+  renderQueue();
+  showToast('Item removed from list', 'info');
+}
+
+function clearQueue() {
+  if (sessionQueue.length === 0) return;
+  if (!confirm(`Clear all ${sessionQueue.length} scanned items?`)) return;
+  sessionQueue = [];
+  renderQueue();
+  showToast('Queue cleared', 'info');
+}
+
+async function saveQueueAndDownload() {
+  if (sessionQueue.length === 0) { showToast('No items to save', 'error'); return; }
+
+  let saved = 0;
+  for (const item of sessionQueue) {
+    try {
+      await dbAdd('assets', item);
+      saved++;
+    } catch (e) {
+      console.error('Save error:', e);
+    }
+  }
+
+  showToast(`✅ Saved ${saved} assets!`, 'success');
+  updateDashboard();
+
+  const wb = XLSX.utils.book_new();
+  const rows = [
+    ['#','Asset Type','Brand','Model','Serial Number','Asset Tag','Department','Building','Floor','Room','Lab','Source','Status','Remarks','Date','Created By']
+  ];
+  sessionQueue.forEach((a, i) => {
+    rows.push([
+      i + 1, a.assetType, a.brand, a.model, a.serialNumber, a.assetTag || '',
+      a.department, a.building, a.floor, a.room, a.lab,
+      a.source, a.status, a.remarks,
+      a.date ? new Date(a.date).toLocaleString() : '',
+      a.createdBy
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = rows[0].map(() => ({ wch: 18 }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Session Assets');
+  XLSX.writeFile(wb, `Asset_Session_${new Date().toISOString().replace(/[:.]/g,'-').split('T')[0]}.xlsx`);
+
+  sessionQueue = [];
+  renderQueue();
+  showToast('📥 Excel downloaded!', 'success');
+}
+
+async function saveAsset() {
+  addToQueue();
+}
+
+function resetScanForm() {
+  pendingSerial = ''; pendingBrand = ''; pendingModel = ''; pendingSource = '';
+  ocrImageData = null;
+  sessionQueue = [];
+  renderQueue();
+  document.getElementById('scanResultBox').classList.remove('show');
+  document.getElementById('duplicateAlert').classList.remove('show');
+  document.getElementById('ocrResultArea').style.display = 'none';
+  document.getElementById('photoPreview').style.display = 'none';
+  document.getElementById('ocrPlaceholder').style.display = '';
+  document.getElementById('saveAssetSection').style.display = 'none';
+  document.getElementById('manualSerial').value = '';
+  document.getElementById('manualBrand').value = '';
+  document.getElementById('manualModel').value = '';
+  document.getElementById('scanRemarks').value = '';
+  document.getElementById('hiddenCamInput').value = '';
+  document.getElementById('hiddenFileInput').value = '';
+  const qci = document.getElementById('qrCamInput');
+  if (qci) qci.value = '';
+  const qgi = document.getElementById('qrGalleryInput');
+  if (qgi) qgi.value = '';
+  const qpp = document.getElementById('qrPhotoPreview');
+  if (qpp) qpp.style.display = 'none';
+  hideAllScanMethods();
+}
+
+// =============================================
+// BULK MODE
+// =============================================
+function showBulkMode() {
+  bulkAssetCount = 0; bulkItems = [];
+  refreshDeptDropdowns();
+  document.getElementById('bulkCount').textContent = 0;
+  document.getElementById('bulkCountLabel').textContent = 'Assets Scanned';
+  document.getElementById('bulkRecentList').innerHTML = '';
+  openModal('bulkModal');
+}
+
+async function startBulkScan() {
+  const type = document.getElementById('bulkAssetType').value;
+  if (!type) { showToast('Select an asset type first', 'error'); return; }
+
+  if (!tesseractReady) {
+    showToast('⏳ Loading OCR engine...', 'info');
+    await initTesseract();
+    if (!tesseractReady) { showToast('OCR not ready. Try again.', 'error'); return; }
+  }
+
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.capture = 'environment';
+  inp.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const imgData = ev.target.result;
+      showToast('🔍 Reading with offline OCR...', 'info');
+      try {
+        const result = await tesseractWorker.recognize(imgData);
+        const rawText = result.data.text || '';
+        const snPatterns = [
+          /S\/N\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-]{4,20})/i,
+          /SER(?:IAL)?\s*(?:NO?|NUM(?:BER)?)\s*[:\-#]?\s*([A-Z0-9][A-Z0-9\-]{4,20})/i,
+          /SERVICE\s*TAG\s*[:\-]?\s*([A-Z0-9]{4,12})/i,
+          /\b([A-Z]{1,4}[0-9]{5,}[A-Z0-9]*)\b/,
+        ];
+        let serial = '';
+        for (const re of snPatterns) {
+          const m = rawText.match(re);
+          if (m && m[1]) { serial = m[1].toUpperCase(); break; }
+        }
+        const brandList = ['Dell','HP','Lenovo','Acer','Asus','Samsung','LG','Logitech','Microsoft','Apple','Canon','Epson','Brother','Toshiba','Fujitsu','HCL'];
+        let brand = '';
+        for (const b of brandList) { if (rawText.toLowerCase().includes(b.toLowerCase())) { brand = b; break; } }
+
+        if (serial) {
+          saveBulkAsset(serial, type, brand, '');
+        } else {
+          const s = prompt(`OCR text found:\n"${rawText.substring(0,120)}"\n\nEnter serial number manually:`);
+          if (s) saveBulkAsset(s.trim(), type, brand, '');
+        }
+      } catch {
+        const s = prompt('OCR failed. Enter serial number manually:');
+        if (s) saveBulkAsset(s.trim(), type, '', '');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  inp.click();
+}
+
+async function saveBulkAsset(serial, type, brand, model) {
+  const dept = document.getElementById('bulkDept').value;
+  const asset = {
+    assetType: type,
+    department: dept,
+    serialNumber: serial,
+    brand: brand || '',
+    model: model || '',
+    source: 'OCR',
+    status: 'Active',
+    date: new Date().toISOString(),
+    createdBy: currentUser ? currentUser.email : 'unknown'
+  };
+  await dbAdd('assets', asset);
+  bulkAssetCount++;
+  bulkItems.unshift(serial);
+  document.getElementById('bulkCount').textContent = bulkAssetCount;
+  document.getElementById('bulkCountLabel').textContent = `${type}s Scanned`;
+
+  const list = document.getElementById('bulkRecentList');
+  list.innerHTML = bulkItems.slice(0, 10).map((s, i) => `
+    <div class="recent-item">
+      <span style="color:var(--text2);font-size:11px">#${bulkAssetCount - i}</span>
+      <span style="font-weight:600">${s}</span>
+      <span class="source-badge ocr">OCR</span>
+    </div>
+  `).join('');
+  showToast(`✅ Saved: ${serial}`, 'success');
+  updateDashboard();
+}
+
+// =============================================
+// ASSET LIST
+// =============================================
+async function renderAssets() {
+  const query = (document.getElementById('assetSearch').value || '').toLowerCase();
+  let assets = await dbGetAll('assets');
+
+  if (currentFilter !== 'all') {
+    assets = assets.filter(a => a.assetType === currentFilter);
+  }
+  if (query) {
+    assets = assets.filter(a =>
+      (a.serialNumber || '').toLowerCase().includes(query) ||
+      (a.department || '').toLowerCase().includes(query) ||
+      (a.room || '').toLowerCase().includes(query) ||
+      (a.assetType || '').toLowerCase().includes(query) ||
+      (a.brand || '').toLowerCase().includes(query) ||
+      (a.model || '').toLowerCase().includes(query)
+    );
+  }
+  assets.reverse();
+
+  const el = document.getElementById('assetsList');
+  if (assets.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="ei">📦</div><p>No assets found</p></div>';
+    return;
+  }
+  el.innerHTML = assets.map(a => `
+    <div class="asset-card" onclick="viewAsset(${a.id})">
+      <div class="asset-card-header">
+        <div class="asset-type-badge">${a.assetType || 'Asset'}</div>
+        <div class="status-badge ${(a.status||'active').toLowerCase()}">${a.status || 'Active'}</div>
+      </div>
+      <div class="serial">${a.serialNumber || 'No serial'}</div>
+      <div class="meta">${[a.brand, a.model].filter(Boolean).join(' ') || '—'}</div>
+      <div class="meta" style="margin-top:2px;">${a.department || '—'} · ${a.building || ''} ${a.room ? 'Room '+a.room : ''}</div>
+      <div class="asset-card-footer">
+        <div class="source-badge ${(a.source||'').toLowerCase()}">${a.source || '—'}</div>
+        <div style="font-size:11px;color:var(--text3);margin-left:auto;">${formatDate(a.date)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function setFilter(val, el) {
+  currentFilter = val;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderAssets();
+}
+
+async function viewAsset(id) {
+  const assets = await dbGetAll('assets');
+  const asset = assets.find(a => a.id === id);
+  if (!asset) return;
+
+  const fields = [
+    ['Asset ID', asset.id],
+    ['Asset Type', asset.assetType],
+    ['Serial Number', asset.serialNumber],
+    ['Brand', asset.brand],
+    ['Model', asset.model],
+    ['Asset Tag', asset.assetTag],
+    ['Department', asset.department],
+    ['Building', asset.building],
+    ['Floor', asset.floor],
+    ['Room', asset.room],
+    ['Lab/Area', asset.lab],
+    ['Source', asset.source],
+    ['Status', asset.status],
+    ['Remarks', asset.remarks],
+    ['Date', formatDate(asset.date)],
+    ['Created By', asset.createdBy],
+  ];
+
+  document.getElementById('assetDetailContent').innerHTML = `
+    ${fields.filter(f => f[1]).map(f => `
+      <div class="info-row">
+        <div class="key">${f[0]}</div>
+        <div class="val">${f[1]}</div>
+      </div>
+    `).join('')}
+  `;
+
+  document.getElementById('deleteAssetBtn').onclick = () => deleteAsset(id);
+  openModal('assetDetailModal');
+}
+
+async function deleteAsset(id) {
+  if (!confirm('Delete this asset?')) return;
+  await dbDelete('assets', id);
+  closeModal('assetDetailModal');
+  renderAssets();
+  updateDashboard();
+  showToast('Asset deleted', 'info');
+}
+
+// =============================================
+// REPORTS
+// =============================================
+async function renderReports() {
+  const assets = await dbGetAll('assets');
+  document.getElementById('reportTotal').textContent = assets.length;
+
+  renderChart('chartByType', groupBy(assets, 'assetType'));
+  renderChart('chartByDept', groupBy(assets, 'department'));
+  renderChart('chartBySource', groupBy(assets, 'source'));
+}
+
+function groupBy(arr, key) {
+  const groups = {};
+  arr.forEach(a => {
+    const k = a[key] || 'Unknown';
+    groups[k] = (groups[k] || 0) + 1;
+  });
+  return Object.entries(groups).sort((a,b) => b[1]-a[1]);
+}
+
+function renderChart(containerId, data) {
+  const el = document.getElementById(containerId);
+  if (!data.length) { el.innerHTML = '<div style="color:var(--text2);font-size:13px;">No data yet</div>'; return; }
+  const max = data[0][1];
+  el.innerHTML = data.slice(0, 10).map(([label, count]) => `
+    <div class="chart-bar-item">
+      <div class="chart-bar-label"><span>${label}</span><span>${count}</span></div>
+      <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(count/max)*100}%"></div></div>
+    </div>
+  `).join('');
+}
+
+// =============================================
+// EXCEL EXPORT
+// =============================================
+async function exportExcel() {
+  const assets = await dbGetAll('assets');
+  if (!assets.length) { showToast('No assets to export', 'error'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const rows = [
+    ['Asset ID','Asset Type','Brand','Model','Serial Number','Asset Tag','Department','Building','Floor','Room','Lab','Source','Status','Remarks','Date','Created By']
+  ];
+  assets.forEach(a => {
+    rows.push([
+      a.id, a.assetType, a.brand, a.model, a.serialNumber, a.assetTag,
+      a.department, a.building, a.floor, a.room, a.lab,
+      a.source, a.status, a.remarks,
+      a.date ? new Date(a.date).toLocaleString() : '',
+      a.createdBy
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = rows[0].map(() => ({ wch: 18 }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+
+  const typeGroups = groupBy(assets, 'assetType');
+  const deptGroups = groupBy(assets, 'department');
+  const sumRows = [
+    ['ASSET INVENTORY SUMMARY'],
+    [`Generated: ${new Date().toLocaleString()}`],
+    [`Organization: ${orgName}`],
+    [`Total Assets: ${assets.length}`],
+    [''],
+    ['BY TYPE','COUNT'],
+    ...typeGroups,
+    [''],
+    ['BY DEPARTMENT','COUNT'],
+    ...deptGroups,
+  ];
+  const ws2 = XLSX.utils.aoa_to_sheet(sumRows);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+  XLSX.writeFile(wb, `Asset_Inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
+  showToast('📥 Excel file downloaded!', 'success');
+}
+
+async function doFilteredExport() {
+  const type = document.getElementById('exportType').value;
+  const deptFilter = document.getElementById('exportDept').value;
+  const typeFilter = document.getElementById('exportAssetTypeFilter').value;
+
+  let assets = await dbGetAll('assets');
+  if (deptFilter) assets = assets.filter(a => a.department === deptFilter);
+  if (typeFilter) assets = assets.filter(a => a.assetType === typeFilter);
+
+  closeModal('exportModal');
+  if (!assets.length) { showToast('No assets match filter', 'error'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const rows = [['Asset ID','Asset Type','Brand','Model','Serial Number','Department','Building','Room','Source','Status','Date']];
+  assets.forEach(a => rows.push([a.id,a.assetType,a.brand,a.model,a.serialNumber,a.department,a.building,a.room,a.source,a.status,a.date?new Date(a.date).toLocaleString():'']));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Filtered Assets');
+  XLSX.writeFile(wb, `Asset_Export_Filtered_${Date.now()}.xlsx`);
+  showToast(`📥 Exported ${assets.length} assets`, 'success');
+}
+
+function exportPDF() {
+  dbGetAll('assets').then(assets => {
+    const typeGroups = groupBy(assets, 'assetType');
+    const deptGroups = groupBy(assets, 'department');
+    const html = `<!DOCTYPE html><html><head><style>
+      body{font-family:Arial,sans-serif;padding:24px;color:#111;}
+      h1{color:#0f172a;} table{width:100%;border-collapse:collapse;margin:16px 0;}
+      th{background:#0f172a;color:#fff;padding:8px;text-align:left;font-size:12px;}
+      td{padding:7px;font-size:12px;border-bottom:1px solid #eee;}
+      tr:nth-child(even)td{background:#f9f9f9;}
+      .summary{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0;}
+      .scard{background:#f1f5f9;border-radius:8px;padding:12px 20px;text-align:center;}
+      .scard .n{font-size:28px;font-weight:800;color:#0284c7;}
+      .scard .l{font-size:11px;color:#64748b;text-transform:uppercase;}
+    </style></head><body>
+    <h1>📋 Asset Inventory Report</h1>
+    <p>Organization: <strong>${orgName}</strong></p>
+    <p>Generated: <strong>${new Date().toLocaleString()}</strong></p>
+    <div class="summary">
+      <div class="scard"><div class="n">${assets.length}</div><div class="l">Total Assets</div></div>
+      ${typeGroups.slice(0,4).map(([t,c])=>`<div class="scard"><div class="n">${c}</div><div class="l">${t}</div></div>`).join('')}
+    </div>
+    <h2>Assets by Department</h2>
+    <table><tr><th>Department</th><th>Count</th></tr>${deptGroups.map(([d,c])=>`<tr><td>${d}</td><td>${c}</td></tr>`).join('')}</table>
+    <h2>All Assets</h2>
+    <table>
+      <tr><th>#</th><th>Type</th><th>Serial Number</th><th>Brand/Model</th><th>Department</th><th>Room</th><th>Status</th><th>Date</th></tr>
+      ${assets.map((a,i)=>`<tr><td>${i+1}</td><td>${a.assetType||''}</td><td><strong>${a.serialNumber||''}</strong></td><td>${[a.brand,a.model].filter(Boolean).join(' ')}</td><td>${a.department||''}</td><td>${a.room||''}</td><td>${a.status||''}</td><td>${a.date?new Date(a.date).toLocaleDateString():''}</td></tr>`).join('')}
+    </table>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Asset_Report_${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📄 PDF/Report downloaded!', 'success');
+  });
+}
+
+// =============================================
+// SETTINGS
+// =============================================
+async function addDepartment() {
+  const inp = document.getElementById('newDeptInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  if (departments.includes(val)) { showToast('Already exists', 'error'); return; }
+  departments.push(val);
+  await setSetting('departments', departments);
+  inp.value = '';
+  renderDeptList();
+  refreshDeptDropdowns();
+}
+
+function renderDeptList() {
+  document.getElementById('deptList').innerHTML = departments.map((d, i) => `
+    <div class="info-row">
+      <div class="key">🏢 ${d}</div>
+      <button class="btn btn-sm btn-danger" onclick="removeDept(${i})">Remove</button>
+    </div>
+  `).join('');
+}
+
+async function removeDept(idx) {
+  departments.splice(idx, 1);
+  await setSetting('departments', departments);
+  renderDeptList();
+  refreshDeptDropdowns();
+}
+
+function openDeptModal() {
+  renderDeptList();
+  openModal('deptModal');
+}
+
+async function addBuilding() {
+  const inp = document.getElementById('newBuildingInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  if (buildings.includes(val)) { showToast('Already exists', 'error'); return; }
+  buildings.push(val);
+  await setSetting('buildings', buildings);
+  inp.value = '';
+  renderBuildingList();
+}
+
+function renderBuildingList() {
+  document.getElementById('buildingList').innerHTML = buildings.map((b, i) => `
+    <div class="info-row">
+      <div class="key">🏗️ ${b}</div>
+      <button class="btn btn-sm btn-danger" onclick="removeBuilding(${i})">Remove</button>
+    </div>
+  `).join('');
+}
+
+async function removeBuilding(idx) {
+  buildings.splice(idx, 1);
+  await setSetting('buildings', buildings);
+  renderBuildingList();
+}
+
+function openBuildingModal() {
+  renderBuildingList();
+  openModal('buildingModal');
+}
+
+function openOrgModal() {
+  document.getElementById('orgNameInput').value = orgName;
+  openModal('orgModal');
+}
+
+async function saveOrg() {
+  orgName = document.getElementById('orgNameInput').value.trim() || 'My Organization';
+  await setSetting('orgName', orgName);
+  updateSettingsUI();
+  closeModal('orgModal');
+  showToast('Organization name saved', 'success');
+}
+
+async function clearAllData() {
+  if (!confirm('Delete ALL assets? This cannot be undone.')) return;
+  if (!confirm('Are you absolutely sure? All data will be lost.')) return;
+  await dbClear('assets');
+  updateDashboard();
+  showToast('All data cleared', 'info');
+}
+
+function showImportModal() {
+  showToast('Import: Export your Excel, add rows, re-import (coming soon)', 'info');
+}
+
+function showExportModal() {
+  refreshDeptDropdowns();
+  openModal('exportModal');
+}
+
+function updateStorageInfo() {
+  if (navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(({ usage, quota }) => {
+      const usedMB = (usage / 1024 / 1024).toFixed(2);
+      const quotaMB = (quota / 1024 / 1024).toFixed(0);
+      document.getElementById('storageInfo').textContent = `${usedMB} MB used of ${quotaMB} MB`;
+    });
+  } else {
+    document.getElementById('storageInfo').textContent = 'Storage info unavailable';
+  }
+}
+
+// =============================================
+// MODAL HELPERS
+// =============================================
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+});
+
+// =============================================
+// TOAST
+// =============================================
+let toastTimeout;
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// =============================================
+// UTILITIES
+// =============================================
+function formatDate(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  } catch { return iso; }
+}
+
+// =============================================
+// BOOT
+// =============================================
+initDB().then(() => {
+  if (!checkSession()) {
+  }
+}).catch(e => {
+  console.error('DB init failed', e);
+  showToast('Storage error. Try refreshing.', 'error');
+});
+</script>
+</body>
+</html>
